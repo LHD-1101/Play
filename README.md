@@ -1,3 +1,7 @@
-This website helps you generate personalized, safe exercise plans tailored to your body. It instantly calculates your workout intensity and calorie expenditure to ensure effective training. Furthermore, the system tracks your long-term progress with visual trend charts and allows you to download your complete prescription as a printable Word document.
+This webpage is a “running training assistant.”
+You can record your daily running distance, and the system will automatically calculate your recent training load. It helps you understand whether your current workload is too high, too low, or just right—so you can avoid injuries and train more effectively.
 
-Created by NTUNHS EHS Team MLLLCY
+It also provides clothing suggestions based on weather, a pre-run checklist, and a monthly calendar that displays all your training records.
+In short, it puts everything a runner usually needs in one place, so you don’t have to calculate or remember anything yourself. It makes running safer, easier, and more reassuring.
+
+Created by HDL
