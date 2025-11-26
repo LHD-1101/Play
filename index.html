@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACSM FITT-VP 智能環狀運動處方系統 (Beta v1.0)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-dark: #004d40;
+            --primary-main: #00897b;
+            --primary-light: #e0f2f1;
+            --accent-color: #ff8f00;
+            --text-primary: #263238;
+            --text-secondary: #546e7a;
+            --bg-body: #f5f7fa;
+            --surface: #ffffff;
+            
+            --bmi-under: #42a5f5;
+            --bmi-normal: #66bb6a;
+            --bmi-over: #ffa726;
+            --bmi-obese: #ef5350;
+
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.05);
+            --shadow-md: 0 8px 24px rgba(0,0,0,0.08);
+            --radius-lg: 16px;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+            line-height: 1.5;
+        }
+
+        /* Layout */
+        .app-container {
+            max-width: 1400px; margin: 0 auto; padding: 20px;
+            display: flex; gap: 30px; align-items: flex-start;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 300px; flex-shrink: 0; position: sticky; top: 20px;
+            background: #e0f2f1; border: 1px solid #b2dfdb; border-radius: var(--radius-lg);
+            box-shadow: 0 10px 25px rgba(0, 77, 64, 0.15); padding: 25px;
+            border-left: 8px solid var(--primary-dark);
+            display: flex; flex-direction: column; gap: 20px;
+            max-height: calc(100vh - 40px); overflow-y: auto;
+        }
+        .main-content { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 30px; padding-bottom: 50px; }
+
+        /* Sidebar Elements */
+        .app-title h1 { font-size: 1.4rem; margin: 0; color: var(--primary-dark); line-height: 1.3; }
+        .profile-group { display: flex; flex-direction: column; gap: 15px; }
+        .profile-label { font-size: 0.85rem; font-weight: 700; color: var(--primary-dark); margin-bottom: 5px; }
+        .profile-input, .profile-select { padding: 10px; border: 1px solid #80cbc4; border-radius: 8px; width: 100%; }
+        
+        .bmi-box { background: #fff; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #80cbc4; display: flex; justify-content: space-between; align-items: center; }
+        .bmi-val { font-size: 1.4rem; font-weight: 800; }
+        .bmi-tag { font-size: 0.8rem; color: white; padding: 4px 8px; border-radius: 4px; background: #ccc; }
+
+        .stats-container { display: flex; flex-direction: column; gap: 10px; border-top: 2px solid #b2dfdb; padding-top: 20px; }
+        .stat-card { background: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.5); padding: 10px 15px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .stat-value { font-size: 1.4rem; font-weight: 800; color: var(--accent-color); }
+
+        /* AI Section */
+        .ai-section { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 30px; border-left: 6px solid #7c4dff; }
+        .ai-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 25px; }
+        .btn-analyze { background: linear-gradient(135deg, #7c4dff, #651fff); color: white; border: none; padding: 14px; border-radius: 50px; font-size: 1.1rem; font-weight: 600; width: 100%; cursor: pointer; transition: transform 0.2s; box-shadow: 0 5px 15px rgba(124, 77, 255, 0.3); }
+        .btn-analyze:hover { transform: translateY(-2px); }
+        .ai-result-container { display: none; margin-top: 25px; border: 2px solid #7c4dff; border-radius: 12px; overflow: hidden; animation: fadeIn 0.5s; }
+        .ai-result-body { padding: 20px; background: #fff; }
+        .analysis-badges { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+        .badge { padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; color: white; }
+
+        /* Grid Cards */
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; }
+        .equip-card { background: white; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); border: 1px solid #f0f0f0; overflow: hidden; display: flex; flex-direction: column; position: relative; transition: transform 0.2s; }
+        .equip-card:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.08); }
+        .highlight-card { border: 3px solid #7c4dff; box-shadow: 0 0 20px rgba(124,77,255,0.25); transform: translateY(-5px); }
+        .highlight-tag { position: absolute; top: 0; right: 0; background: #7c4dff; color: white; font-size: 0.9rem; padding: 6px 12px; border-bottom-left-radius: 10px; font-weight: 700; display: none; }
+        
+        .card-header { padding: 15px 20px; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; align-items: center; }
+        .card-title { font-weight: 700; color: var(--primary-dark); }
+        .btn-icon { width: 28px; height: 28px; border-radius: 50%; border: 1px solid #ddd; background: #fff; cursor: pointer; color: #666; }
+        .btn-icon:hover { background: #f0f0f0; color: var(--primary-main); }
+
+        .card-body { padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+        .control-row { display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 5px; }
+        input[type=range] { width: 100%; cursor: pointer; }
+        .preview-m { font-size: 1.5rem; font-weight: 800; color: var(--primary-dark); text-align: center; margin: 10px 0; }
+        .btn-add { background: var(--primary-main); color: white; border: none; padding: 10px; border-radius: 8px; font-weight: 600; cursor: pointer; width: 100%; }
+        .warning-msg { background: #ffebee; color: #c62828; font-size: 0.8rem; padding: 5px; text-align: center; border-radius: 4px; display: none; }
+
+        /* Summary */
+        .summary-panel { background: white; border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-sm); border-top: 5px solid var(--accent-color); }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 0.95rem; }
+        th { background: #f9fafb; color: var(--text-secondary); font-weight: 600; }
+        
+        .btn-export, .btn-custom { background: #37474f; color: white; border: none; padding: 8px 15px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-left: 5px; font-size: 0.9rem;}
+        .btn-clear { background: #c62828; color: white; border: none; padding: 8px 15px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-left: 5px; font-size: 0.9rem;}
+        .btn-save-cal { background: var(--accent-color); color: white; border: none; padding: 8px 15px; border-radius: 6px; font-weight: 600; cursor: pointer; }
+
+        /* Calendar */
+        .calendar-section { background: white; border-radius: var(--radius-lg); padding: 25px; box-shadow: var(--shadow-sm); margin-top: 30px; }
+        .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .cal-btn { background: #f5f5f5; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+        .cal-head { text-align: center; font-weight: 600; color: #999; padding-bottom: 10px; font-size: 0.9rem; }
+        .cal-day { 
+            min-height: 100px; border: 1px solid #eee; border-radius: 8px; padding: 5px; 
+            display: flex; flex-direction: column; align-items: flex-start; position: relative; 
+        }
+        .cal-day.has-data { background: #e8f5e9; border-color: #81c784; cursor: pointer; }
+        .cal-day.has-data:hover { background: #ffcdd2; border-color: #e57373; }
+        .cal-num { font-weight: 700; font-size: 1rem; margin-bottom: 4px;}
+        .cal-stat { font-size: 0.7rem; color: #555; line-height: 1.2; white-space: nowrap; }
+        .cal-stat.mets { color: var(--primary-dark); font-weight: 700; }
+        .cal-stat.time { color: #1565c0; }
+        .cal-stat.kcal { color: #e65100; }
+
+        /* Chart Section */
+        .chart-section { background: white; border-radius: var(--radius-lg); padding: 25px; box-shadow: var(--shadow-sm); margin-top: 30px; }
+        
+        /* Modal */
+        .modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999; backdrop-filter: blur(2px); }
+        .modal-content { background:white; width:90%; max-width:600px; margin:50px auto; padding:30px; border-radius:15px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); max-height: 85vh; overflow-y: auto; }
+        .modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom: 1px solid #eee; padding-bottom: 15px;}
+        .modal-title { font-size: 1.4rem; font-weight: 700; color: var(--primary-dark); }
+        .info-section h4 { margin: 15px 0 5px; color: var(--primary-main); border-left: 4px solid var(--accent-color); padding-left: 10px; }
+        .info-section p { font-size: 0.95rem; color: #444; margin: 0 0 10px; line-height: 1.6; }
+
+        @media (max-width: 900px) {
+            .app-container { flex-direction: column; }
+            .sidebar { width: 100%; position: static; max-height: none; }
+        }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+
+    <aside class="sidebar">
+        <div class="app-title">
+            <h1>ACSM FITT-VP<br>智能環狀運動處方</h1>
+            <p style="color: #666;">System Beta v1.0</p>
+        </div>
+
+        <div class="profile-group">
+            <div class="profile-item"><label class="profile-label">使用者編號</label><input type="text" id="u-id" class="profile-input" value="U-001" placeholder="ID"></div>
+            <div class="profile-item"><label class="profile-label">性別</label><select id="u-gen" class="profile-select"><option>女</option><option>男</option></select></div>
+            <div class="profile-item"><label class="profile-label">年齡</label><input type="number" id="u-age" class="profile-input" value="60"></div>
+            <div class="profile-item"><label class="profile-label">身高 (cm)</label><input type="number" id="u-height" class="profile-input" value="160" oninput="calcBMI()"></div>
+            <div class="profile-item"><label class="profile-label">體重 (kg)</label><input type="number" id="u-weight" class="profile-input" value="55" oninput="calcBMI();updTotals()"></div>
+            
+            <div class="bmi-box">
+                <div><span style="font-size:0.8rem; color:#777;">BMI</span><br><span id="bmi-val" class="bmi-val">21.5</span></div>
+                <span id="bmi-tag" class="bmi-tag" style="background:var(--bmi-normal)">正常</span>
+            </div>
+        </div>
+
+        <div class="stats-container">
+            <div class="stat-card"><span class="stat-label">累積時間</span><span class="stat-value"><span id="t-time">0</span> <small>min</small></span></div>
+            <div class="stat-card"><span class="stat-label">總 METs</span><span class="stat-value" id="t-mets">0</span></div>
+            <div class="stat-card"><span class="stat-label">熱量消耗</span><span class="stat-value"><span id="t-kcal">0</span> <small>Kcal</small></span></div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        
+        <div class="ai-section">
+            <div class="ai-header"><h3>🤖 AI 運動處方規劃 (Clinical Evidence)</h3></div>
+            <div class="ai-form-grid">
+                <div><label class="profile-label">目標族群</label><select id="ai-pop" class="profile-select"><option value="healthy">一般健康 (Healthy)</option><option value="elderly">高齡/虛弱 (Elderly)</option><option value="dynapenia">力弱症 (Dynapenia)</option><option value="hypertension">高血壓 (Hypertension)</option><option value="metabolic">代謝症候群 (Metabolic)</option></select></div>
+                <div><label class="profile-label">訓練目標</label><select id="ai-goal" class="profile-select"><option value="maintain">健康維持</option><option value="weight">減重燃脂</option><option value="cardio">心肺提升</option><option value="muscle">增肌強化</option><option value="bp">血壓控制</option></select></div>
+                <div><label class="profile-label">膝關節狀況</label><select id="ai-knee" class="profile-select"><option value="no">正常</option><option value="yes">疼痛 / 退化</option></select></div>
+                <div><label class="profile-label">呼吸道風險</label><select id="ai-asthma" class="profile-select"><option value="no">無風險</option><option value="yes">氣喘誘發</option></select></div>
+            </div>
+            <button class="btn-analyze" onclick="runAI()">⚡ 開始分析並產生處方</button>
+
+            <div id="ai-result" class="ai-result-container">
+                <div style="background:#f3e5f5; padding:12px 20px; font-weight:700; color:#6a1b9a; border-bottom:1px solid #e1bee7;">📊 處方設計摘要</div>
+                <div style="padding:20px; background:#fff;">
+                    <div class="analysis-badges" id="ai-badges"></div>
+                    <div id="ai-text" style="color:#333; line-height:1.6; margin-bottom:10px;"></div>
+                    <div class="sequence-list"><div style="font-weight:700; margin-bottom:5px; color:#7c4dff;">🔄 建議訓練順序 (單站 5 分鐘):</div><div id="ai-sequence"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-container">
+            <div class="equip-card" id="card-rec">
+                <span class="highlight-tag">SEQ 1</span><div class="card-header"><span>臥式腳踏車</span><button class="btn-icon" onclick="info('rec')">?</button></div>
+                <div class="card-body">
+                    <div><div class="control-row"><span>時間(min)</span><span class="val-display" id="v-t-rec">5</span></div><input type="range" id="i-t-rec" min="0" max="30" step="5" value="5" oninput="upd('rec')"></div>
+                    <div><div class="control-row"><span>阻力(Lv)</span><span class="val-display" id="v-r-rec">8</span></div><input type="range" id="i-r-rec" min="0" max="40" value="8" oninput="upd('rec')"></div>
+                    <div class="warning-msg" id="w-rec">⚠️ 阻力過高</div><div><div class="preview-m" id="m-rec">--</div><span class="preview-label">METs-min</span></div><button class="btn-add" onclick="add('rec')">+ 加入</button>
+                </div>
+            </div>
+            <div class="equip-card" id="card-up">
+                <span class="highlight-tag">SEQ 2</span><div class="card-header"><span>立式腳踏車</span><button class="btn-icon" onclick="info('up')">?</button></div>
+                <div class="card-body">
+                    <div><div class="control-row"><span>時間(min)</span><span class="val-display" id="v-t-up">5</span></div><input type="range" id="i-t-up" min="0" max="30" step="5" value="5" oninput="upd('up')"></div>
+                    <div><div class="control-row"><span>阻力(Lv)</span><span class="val-display" id="v-r-up">10</span></div><input type="range" id="i-r-up" min="0" max="40" value="10" oninput="upd('up')"></div>
+                    <div><div class="preview-m" id="m-up">--</div><span class="preview-label">METs-min</span></div><button class="btn-add" onclick="add('up')">+ 加入</button>
+                </div>
+            </div>
+            <div class="equip-card" id="card-run">
+                <span class="highlight-tag">SEQ 3</span><div class="card-header"><span>跑步機</span><button class="btn-icon" onclick="info('run')">?</button></div>
+                <div class="card-body">
+                    <div><div class="control-row"><span>時間(min)</span><span class="val-display" id="v-t-run">5</span></div><input type="range" id="i-t-run" min="0" max="30" step="5" value="5" oninput="upd('run')"></div>
+                    <div><div class="control-row"><span>速度(kph)</span><span class="val-display" id="v-s-run">5.0</span></div><input type="range" id="i-s-run" min="1" max="18" step="0.1" value="5" oninput="upd('run')"></div>
+                    <div class="warning-msg" id="w-run">⚠️ 速度快!</div><div><div class="preview-m" id="m-run">--</div><span class="preview-label">METs-min</span></div><button class="btn-add" onclick="add('run')">+ 加入</button>
+                </div>
+            </div>
+            <div class="equip-card" id="card-row">
+                <span class="highlight-tag">SEQ 4</span><div class="card-header"><span>划船機</span><button class="btn-icon" onclick="info('row')">?</button></div>
+                <div class="card-body">
+                    <div><div class="control-row"><span>時間(min)</span><span class="val-display" id="v-t-row">5</span></div><input type="range" id="i-t-row" min="0" max="30" step="5" value="5" oninput="upd('row')"></div>
+                    <div><div class="control-row"><span>阻力(Lv)</span><span class="val-display" id="v-r-row">5</span></div><input type="range" id="i-r-row" min="1" max="10" value="5" oninput="upd('row')"></div>
+                    <div class="warning-msg" id="w-row">⚠️ 勿閉氣</div><div><div class="preview-m" id="m-row">--</div><span class="preview-label">METs-min</span></div><button class="btn-add" onclick="add('row')">+ 加入</button>
+                </div>
+            </div>
+            <div class="equip-card" id="card-ellip">
+                <span class="highlight-tag">SEQ 5</span><div class="card-header"><span>橢圓機</span><button class="btn-icon" onclick="info('ellip')">?</button></div>
+                <div class="card-body">
+                    <div><div class="control-row"><span>時間(min)</span><span class="val-display" id="v-t-ellip">5</span></div><input type="range" id="i-t-ellip" min="0" max="30" step="5" value="5" oninput="upd('ellip')"></div>
+                    <div><div class="control-row"><span>強度</span><span class="val-display" id="v-r-ellip">中</span></div><input type="range" id="i-r-ellip" min="1" max="3" step="1" value="2" oninput="upd('ellip')"></div>
+                    <div><div class="preview-m" id="m-ellip">--</div><span class="preview-label">METs-min</span></div><button class="btn-add" onclick="add('ellip')">+ 加入</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="summary-panel">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <h3 style="margin:0; font-size:1.3rem; color:var(--primary-dark);">📋 處方清單</h3>
+                <div><button class="btn-custom" onclick="openCustomModal()">➕ 自定義</button></div>
+            </div>
+            <table id="lst"><thead><tr><th>順序</th><th>器材名稱</th><th>設定參數</th><th>時間</th><th>M值</th><th>操作</th></tr></thead><tbody></tbody></table>
+            <div style="text-align:right; margin-top:15px;">
+                <button class="btn-clear" onclick="clearPlan()">🗑️ 清空</button>
+                <button class="btn-save-cal" onclick="saveCal()">💾 儲存至月曆</button>
+                <button class="btn-export" onclick="exportDoc()">📄 匯出 Word 報表</button>
+            </div>
+        </div>
+
+        <div class="chart-section">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3 style="margin:0; color:var(--primary-dark);">📈 每週 METs 累積趨勢</h3>
+            </div>
+            <div style="position: relative; height:300px; width:100%">
+                <canvas id="metsChart"></canvas>
+            </div>
+        </div>
+
+        <div class="calendar-section">
+            <div class="calendar-header"><button class="cal-btn" onclick="mv(-1)">◀</button><div class="cal-title" id="cal-t"></div><button class="cal-btn" onclick="mv(1)">▶</button></div>
+            <div class="calendar-grid">
+                <div class="cal-head">日</div><div class="cal-head">一</div><div class="cal-head">二</div><div class="cal-head">三</div><div class="cal-head">四</div><div class="cal-head">五</div><div class="cal-head">六</div>
+                <div id="cal-b" style="display:contents"></div>
+            </div>
+        </div>
+
+        <footer style="text-align:center;margin-top:30px;color:#aaa;font-size:0.8rem">&copy; 2025 ACSM FITT-VP System Beta v1.0</footer>
+    </main>
+
+</div>
+
+<div id="mod" class="modal" onclick="this.style.display='none'">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2 class="modal-title" id="mod-t">設備名稱</h2>
+            <span class="close-modal" onclick="document.getElementById('mod').style.display='none'" style="cursor:pointer; font-size:1.5rem;">&times;</span>
+        </div>
+        <div id="mod-b" class="info-section"></div>
+    </div>
+</div>
+
+<div id="edit-mod" class="modal" onclick="closeEditModal()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <h3 id="edit-title" style="margin-top:0; color:var(--primary-dark)">編輯項目</h3>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+            <input type="hidden" id="edit-idx">
+            <div><label style="font-weight:600; font-size:0.9rem;">器材名稱</label><input type="text" id="edit-name" class="profile-input"></div>
+            <div><label style="font-weight:600; font-size:0.9rem;">設定參數</label><input type="text" id="edit-desc" class="profile-input"></div>
+            <div><label style="font-weight:600; font-size:0.9rem;">運動時間 (min)</label><input type="number" id="edit-time" class="profile-input"></div>
+            <div><label style="font-weight:600; font-size:0.9rem;">M 值</label><input type="number" id="edit-m" class="profile-input"></div>
+            <div style="text-align:right; margin-top:10px;">
+                <button class="cal-btn" onclick="closeEditModal()" style="margin-right:10px;">取消</button>
+                <button class="btn-save-cal" onclick="saveEdit()">確認儲存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- Detailed Data ---
+    let plan = [];
+    const db = {
+        'rec': { 
+            t: "臥式腳踏車 (Recumbent Bike)", 
+            desc: "器材說明：座位設有靠背，雙腳向前踩踏。相較於立式單車，此設計能顯著降低腰椎壓力，並提供更穩定的支撐，減少對核心肌群的依賴。<br><br>作用肌群：主要針對股四頭肌（大腿前側）、臀大肌與小腿肌群。膕旁肌（大腿後側）為輔助。<br><br>注意事項：<br>1. 座椅前後位置應調整至踩踏到底時，膝蓋保持微彎（約 10-15 度），避免膝蓋鎖死。<br>2. 上半身緊貼靠背，避免過度前傾或後仰。<br>3. 適合高齡者、肥胖者、背痛患者或平衡感較差者。" 
+        },
+        'up': { 
+            t: "立式腳踏車 (Upright Bike)", 
+            desc: "器材說明：模擬戶外騎乘姿勢，身體重心較高，需要核心肌群參與以維持平衡。提供標準的有氧訓練效果。<br><br>作用肌群：股四頭肌、膕旁肌、小腿肌群（腓腸肌、比目魚肌）。核心肌群需收縮以穩定軀幹。<br><br>注意事項：<br>1. 座墊高度應調整至與髖骨同高。<br>2. 踩踏到底時膝蓋微彎，不可完全伸直。<br>3. 避免將身體重量完全壓在手把上，應保持手肘微彎放鬆。<br>4. 適合一般健康族群及心肺耐力訓練。" 
+        },
+        'run': { 
+            t: "跑步機 (Treadmill)", 
+            desc: "器材說明：提供步行、快走或跑步的全身性負重運動平台。是燃燒熱量效率最高的有氧器材之一，能有效增強骨質密度。<br><br>作用肌群：全身性運動，主要強化股四頭肌、膕旁肌、臀肌、小腿肌群及核心肌群。<br><br>注意事項：<br>1. 務必夾上安全夾，以防跌倒時機器能自動緊急停止。<br>2. 雙眼直視前方，不要低頭看腳或螢幕過久。<br>3. 避免過度握緊扶手，應讓雙臂自然擺動。<br>4. 膝蓋或腳踝有傷者應評估後使用。" 
+        },
+        'row': { 
+            t: "划船機 (Rowing Machine)", 
+            desc: "器材說明：模擬水上划船動作，屬於全身性的綜合訓練器材，能同時訓練心肺耐力與肌力，特別是背部肌群。<br><br>作用肌群：涵蓋全身約 80% 肌群，包括背闊肌、菱形肌、二頭肌、股四頭肌、臀大肌及核心肌群。<br><br>注意事項：<br>1. 動作順序：腿蹬 -> 軀幹後傾 -> 手拉；回程相反。<br>2. 保持背部挺直，不可駝背。<br>3. 高血壓患者需注意呼吸調節，避免閉氣用力 (Valsalva maneuver)，以免血壓瞬間飆升。" 
+        },
+        'ellip': { 
+            t: "橢圓機 (Elliptical Trainer)", 
+            desc: "器材說明：結合踏步機、滑雪機與單車的特點，提供橢圓形的運動軌跡。特點是雙腳不離開踏板，對關節衝擊力（Impact）極低。<br><br>作用肌群：股四頭肌、膕旁肌、臀肌。若配合手把推拉，亦可訓練胸肌、背肌與三頭肌。<br><br>注意事項：<br>1. 腳掌應平貼踏板，避免腳跟懸空造成小腿緊繃。<br>2. 保持身體直立，不要過度前傾。<br>3. 適合膝關節退化、體重過重或受傷復健期的使用者。" 
+        }
+    };
+
+    // --- 1. BMI Logic ---
+    function calcBMI(){
+        let h=parseFloat(document.getElementById('u-height').value), w=parseFloat(document.getElementById('u-weight').value);
+        if(h>0 && w>0){
+            let bmi = Math.round(w/((h/100)**2)*10)/10;
+            let t="正常", c="var(--bmi-normal)";
+            if(bmi<18.5){t="過輕";c="var(--bmi-under)"}
+            else if(bmi>=24 && bmi<27){t="過重";c="var(--bmi-over)"}
+            else if(bmi>=27 && bmi<30){t="輕肥";c="var(--bmi-obese)"}
+            else if(bmi>=30){t="中重肥";c="var(--bmi-obese)"}
+            document.getElementById('bmi-val').innerText=bmi;
+            let tag=document.getElementById('bmi-tag'); tag.innerText=t; tag.style.background=c;
+        }
+    }
+
+    // --- 2. Card & List ---
+    function upd(k){
+        let t=parseInt(document.getElementById(`i-t-${k}`).value);
+        document.getElementById(`v-t-${k}`).innerText=t;
+        let m=0;
+        if(k==='rec'){ let r=parseInt(document.getElementById(`i-r-${k}`).value); document.getElementById(`v-r-${k}`).innerText=r; m=Math.round(t*(3+r*0.2)); document.getElementById('w-rec').style.display=(r>25)?'block':'none'; }
+        if(k==='up'){ let r=parseInt(document.getElementById(`i-r-${k}`).value); document.getElementById(`v-r-${k}`).innerText=r; m=Math.round(t*(4+r*0.25)); }
+        if(k==='run'){ let s=parseFloat(document.getElementById(`i-s-${k}`).value); document.getElementById(`v-s-${k}`).innerText=s; m=Math.round(t*(s*0.8)); document.getElementById('w-run').style.display=(s>6)?'block':'none'; }
+        if(k==='row'){ let r=parseInt(document.getElementById(`i-r-${k}`).value); document.getElementById(`v-r-${k}`).innerText=r; m=Math.round(t*(5+r*0.3)); document.getElementById('w-row').style.display=(r>7)?'block':'none'; }
+        if(k==='ellip'){ let r=parseInt(document.getElementById(`i-r-${k}`).value); document.getElementById(`v-r-${k}`).innerText=(r==1?"慢":r==2?"中":"快"); m=Math.round(t*(r==1?4:r==2?6:9)); }
+        document.getElementById(`m-${k}`).innerText=m;
+    }
+    function add(k){
+        let t=parseInt(document.getElementById(`v-t-${k}`).innerText), m=parseInt(document.getElementById(`m-${k}`).innerText);
+        if(t===0)return;
+        let d=""; if(k==='run')d="Spd "+document.getElementById(`v-s-${k}`).innerText; else if(k==='ellip')d="Int "+document.getElementById(`v-r-${k}`).innerText; else d="Lv "+document.getElementById(`v-r-${k}`).innerText;
+        plan.push({name:db[k].t.split(" (")[0], d:d, t:t, m:m}); rend();
+    }
+    function rend(){
+        let b=document.querySelector('#lst tbody'); b.innerHTML=""; let tt=0,tm=0;
+        plan.forEach((x,i)=>{ 
+            tt+=parseInt(x.t); tm+=parseInt(x.m); 
+            b.innerHTML+=`<tr><td>${i+1}</td><td>${x.name}</td><td>${x.d}</td><td>${x.t} min</td><td>${x.m}</td><td><button class="cal-btn" onclick="openEdit(${i})" style="padding:4px 8px;margin-right:5px">✎</button><button class="cal-btn" onclick="del(${i})" style="padding:4px 8px;color:red">X</button></td></tr>`;
+        });
+        document.getElementById('t-time').innerText=tt; document.getElementById('t-mets').innerText=tm; updTotals();
+    }
+    function del(i){ plan.splice(i,1); rend(); }
+    function clearPlan(){ if(confirm("清空?")){plan=[];rend();} }
+    function updTotals(){
+        let tm=parseInt(document.getElementById('t-mets').innerText), w=parseFloat(document.getElementById('u-weight').value)||70;
+        document.getElementById('t-kcal').innerText = Math.round((tm*3.5*w)/200);
+    }
+    function info(k){ 
+        document.getElementById('mod-t').innerText=db[k].t; 
+        document.getElementById('mod-b').innerHTML=`<p>${db[k].desc}</p>`; 
+        document.getElementById('mod').style.display='block'; 
+    }
+
+    // Custom & Edit
+    let isEditing = false;
+    function openCustomModal(){
+        isEditing=false; document.getElementById('edit-title').innerText="新增項目";
+        document.getElementById('edit-idx').value=-1; document.getElementById('edit-name').value="";
+        document.getElementById('edit-desc').value=""; document.getElementById('edit-time').value=5; document.getElementById('edit-m').value=0;
+        document.getElementById('edit-mod').style.display='block';
+    }
+    function openEdit(idx){
+        isEditing=true; let p=plan[idx];
+        document.getElementById('edit-title').innerText="編輯項目"; document.getElementById('edit-idx').value=idx;
+        document.getElementById('edit-name').value=p.name; document.getElementById('edit-desc').value=p.d;
+        document.getElementById('edit-time').value=p.t; document.getElementById('edit-m').value=p.m;
+        document.getElementById('edit-mod').style.display='block';
+    }
+    function saveEdit(){
+        let idx=parseInt(document.getElementById('edit-idx').value);
+        let o={name:document.getElementById('edit-name').value, d:document.getElementById('edit-desc').value, t:parseInt(document.getElementById('edit-time').value), m:parseInt(document.getElementById('edit-m').value)};
+        if(!o.name){alert("名稱?");return;}
+        if(isEditing && idx>=0) plan[idx]=o; else plan.push(o);
+        closeEditModal(); rend();
+    }
+    function closeEditModal(){ document.getElementById('edit-mod').style.display='none'; }
+
+    // --- 3. AI ---
+    function runAI(){
+        const pop=document.getElementById('ai-pop').value, goal=document.getElementById('ai-goal').value;
+        const knee=document.getElementById('ai-knee').value, asthma=document.getElementById('ai-asthma').value;
+        
+        let st=5, unit=5, r_t="";
+        if(pop==='elderly'||pop==='dynapenia'||knee==='yes'){ st=3; r_t="高風險/疼痛：設定最低有效劑量 (15分鐘)。"; } 
+        else if(goal==='weight'||pop==='metabolic'){ st=6; r_t="減重/代謝：設定最大建議時間 (30分鐘)。"; }
+        else { st=5; r_t="一般標準：設定 (25分鐘)。"; }
+
+        let pool=['rec','up','run','row','ellip'];
+        if(knee==='yes') pool=pool.filter(x=>x!=='run'&&x!=='row');
+        if(pop==='elderly'||pop==='dynapenia') pool=pool.filter(x=>x!=='run');
+        if(pop==='hypertension') pool=pool.filter(x=>x!=='row');
+        if(asthma==='yes') pool=pool.filter(x=>x!=='run');
+
+        while(pool.length < 3) {
+            if(!pool.includes('rec')) pool.push('rec');
+            else if(!pool.includes('up')) pool.push('up');
+            else if(!pool.includes('ellip')) pool.push('ellip');
+            else if(!pool.includes('row')) pool.push('row');
+        }
+
+        if(goal==='muscle') pool.sort((a,b)=>(a==='row'||a==='rec')?-1:1); 
+        else if(goal==='cardio') pool.sort((a,b)=>(a==='run'||a==='up')?-1:1);
+
+        let list=[];
+        for(let i=0; i<3; i++) list.push(pool[i]);
+        for(let i=3; i<st; i++) list.push(pool[i%pool.length]);
+
+        document.querySelectorAll('.equip-card').forEach(e=>{ e.classList.remove('highlight-card'); e.querySelector('.highlight-tag').style.display='none'; });
+        
+        let seqHtml = "";
+        list.forEach((k,i)=>{
+            let c=document.getElementById(`card-${k}`); c.classList.add('highlight-card');
+            let t=c.querySelector('.highlight-tag'); t.innerText=`SEQ ${i+1}`; t.style.display='block';
+            document.getElementById(`i-t-${k}`).value=unit; upd(k);
+            seqHtml += `<div class="sequence-item">${i+1}. <strong>${db[k].t.split(" (")[0]}</strong> (5 min)</div>`;
+        });
+
+        let pTxt=document.getElementById('ai-pop').options[document.getElementById('ai-pop').selectedIndex].text;
+        let gTxt=document.getElementById('ai-goal').options[document.getElementById('ai-goal').selectedIndex].text;
+        let uniq=new Set(list).size;
+        
+        document.getElementById('ai-badges').innerHTML=`<span class="badge" style="background:#7e57c2">${st*unit} mins</span><span class="badge" style="background:#5c6bc0">${uniq} Equipments</span>`;
+        document.getElementById('ai-text').innerHTML=`
+            <div><strong>針對：</strong>${pTxt} / ${gTxt}</div>
+            <div style="margin-top:5px;color:#004d40"><strong>💡 策略：</strong>${r_t} 為確保交叉訓練，強制組合 ${uniq} 種不同器材。</div>
+        `;
+        document.getElementById('ai-sequence').innerHTML = seqHtml;
+        document.getElementById('ai-result').style.display='block';
+        document.querySelector('.grid-container').scrollIntoView({behavior:'smooth'});
+    }
+
+    // --- 4. Calendar & Chart ---
+    let cy=new Date().getFullYear(), cm=new Date().getMonth();
+    let cData=JSON.parse(localStorage.getItem('fittvp_cal_v10'))||{};
+    let chartInst = null;
+
+    function drawCal(y,m){
+        let f=new Date(y,m,1).getDay(), d=new Date(y,m+1,0).getDate();
+        document.getElementById('cal-t').innerText=`${y} / ${m+1}`;
+        let b=document.getElementById('cal-b'); b.innerHTML="";
+        for(let i=0; i<f; i++) b.innerHTML+=`<div class="cal-day" style="background:none;border:none"></div>`;
+        for(let i=1; i<=d; i++){
+            let k=`${y}-${String(m+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+            let has=cData[k];
+            let content = "";
+            if(has) {
+                content = `
+                    <div class="cal-stat time">${has.time}m</div>
+                    <div class="cal-stat mets">${has.mets}M</div>
+                    <div class="cal-stat kcal">${has.kcal}k</div>
+                `;
+            }
+            b.innerHTML+=`<div class="cal-day ${has?'has-data':''}" onclick="${has?`delCal('${k}')`:''}">
+                <div class="cal-num">${i}</div>${content}
+            </div>`;
+        }
+        updateChart();
+    }
+    function mv(n){ cm+=n; if(cm>11){cm=0;cy++} else if(cm<0){cm=11;cy--} drawCal(cy,cm); }
+    
+    function saveCal(){
+        let tm=parseInt(document.getElementById('t-mets').innerText);
+        if(tm===0){alert("無數據");return;}
+        let dt=new Date(); 
+        let k=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+        if(cData[k]&&!confirm("覆蓋今日紀錄?"))return;
+        
+        cData[k] = {
+            mets: tm,
+            time: parseInt(document.getElementById('t-time').innerText),
+            kcal: parseInt(document.getElementById('t-kcal').innerText)
+        };
+        localStorage.setItem('fittvp_cal_v10',JSON.stringify(cData)); drawCal(cy,cm); alert("已儲存");
+    }
+    function delCal(k){ if(confirm(`刪除 ${k}?`)){ delete cData[k]; localStorage.setItem('fittvp_cal_v10',JSON.stringify(cData)); drawCal(cy,cm); } }
+
+    // Chart.js Logic
+    function updateChart() {
+        // Aggregate data by week for the current month view + surrounding context if needed
+        // For simplicity, let's show weekly trend of the current year
+        // Or better: Last 8 weeks ending in current month
+        
+        let weeks = {};
+        // Sort keys
+        let keys = Object.keys(cData).sort();
+        
+        keys.forEach(dateStr => {
+            // Simple week number calc
+            let d = new Date(dateStr);
+            let onejan = new Date(d.getFullYear(), 0, 1);
+            let week = Math.ceil((((d.getTime() - onejan.getTime()) / 86400000) + onejan.getDay() + 1) / 7);
+            let key = `W${week}`;
+            if(!weeks[key]) weeks[key] = 0;
+            weeks[key] += cData[dateStr].mets;
+        });
+
+        // Prepare data for Chart.js
+        let labels = Object.keys(weeks).slice(-12); // Last 12 active weeks
+        let dataPoints = labels.map(l => weeks[l]);
+
+        const ctx = document.getElementById('metsChart');
+        if(chartInst) chartInst.destroy();
+
+        chartInst = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '每週累積 METs',
+                    data: dataPoints,
+                    borderColor: '#00897b',
+                    backgroundColor: 'rgba(0, 137, 123, 0.2)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'METs' } }
+                }
+            }
+        });
+    }
+
+    // --- 5. Detailed Word Export ---
+    function exportDoc() {
+        if(plan.length===0){alert("請先建立處方");return;}
+        let d=new Date().toLocaleDateString();
+        let id=document.getElementById('u-id').value;
+        let gender=document.getElementById('u-gen').value;
+        let age=document.getElementById('u-age').value;
+        let h=document.getElementById('u-height').value;
+        let w=document.getElementById('u-weight').value;
+        let bmi=document.getElementById('bmi-val').innerText;
+        
+        let pop=document.getElementById('ai-pop').options[document.getElementById('ai-pop').selectedIndex].text;
+        let goal=document.getElementById('ai-goal').options[document.getElementById('ai-goal').selectedIndex].text;
+        let strategy=document.getElementById('ai-text').innerText || "手動規劃";
+
+        let rows = plan.map((p,i)=>`
+            <tr style="background-color:${i%2===0?'#fff':'#f9f9f9'}">
+                <td style="padding:8px;border:1px solid #ddd;text-align:center;">${i+1}</td>
+                <td style="padding:8px;border:1px solid #ddd;">${p.name}</td>
+                <td style="padding:8px;border:1px solid #ddd;">${p.d}</td>
+                <td style="padding:8px;border:1px solid #ddd;text-align:center;">${p.t} min</td>
+                <td style="padding:8px;border:1px solid #ddd;text-align:center;">${p.m}</td>
+            </tr>`).join('');
+
+        let tT=document.getElementById('t-time').innerText;
+        let tM=document.getElementById('t-mets').innerText;
+        let tK=document.getElementById('t-kcal').innerText;
+
+        let html = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head><meta charset='utf-8'><title>運動處方報告</title>
+            <style>
+                body { font-family: 'Microsoft JhengHei', sans-serif; }
+                h1 { color: #004d40; text-align: center; border-bottom: 2px solid #004d40; padding-bottom: 10px; }
+                h2 { background-color: #e0f2f1; padding: 5px 10px; color: #00695c; margin-top: 20px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                th { background-color: #00897b; color: white; padding: 10px; border: 1px solid #ddd; }
+                .stat-box { border: 1px solid #ccc; padding: 10px; margin-top: 10px; background: #f5f5f5; text-align: center; font-weight: bold; }
+            </style>
+            </head><body>
+                <h1>ACSM FITT-VP 專業運動處方報告</h1>
+                <p style="text-align:right;">報告日期：${d} | ID：${id}</p>
+                
+                <h2>1. 個人身體評估 (Assessment)</h2>
+                <table style="border:none;">
+                    <tr><td>性別：${gender}</td><td>年齡：${age} 歲</td><td>身高：${h} cm</td></tr>
+                    <tr><td>體重：${w} kg</td><td>BMI：${bmi}</td><td></td></tr>
+                </table>
+
+                <h2>2. 臨床決策分析 (Analysis)</h2>
+                <ul>
+                    <li><strong>目標族群：</strong> ${pop}</li>
+                    <li><strong>訓練目標：</strong> ${goal}</li>
+                    <li><strong>處方策略：</strong> ${strategy}</li>
+                </ul>
+
+                <h2>3. 運動處方內容 (Prescription)</h2>
+                <table>
+                    <thead><tr><th>順序</th><th>器材設備</th><th>強度設定</th><th>時間</th><th>負荷 (METs)</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+
+                <h2>4. 預估成效 (Outcome Projection)</h2>
+                <div class="stat-box">
+                    總時間：${tT} 分鐘  |  總運動負荷：${tM} METs  |  預估消耗熱量：${tK} Kcal
+                </div>
+
+                <br><br>
+                <div style="border-top:1px solid #999; margin-top:30px; padding-top:10px; font-size:0.8rem; text-align:center;">
+                    本報告由 ACSM FITT-VP 智能系統 Beta v1.0 生成，僅供參考，實際執行請諮詢專業教練或醫師。
+                </div>
+            </body></html>`;
+
+        let blob = new Blob(['\ufeff', html], {type:'application/msword'});
+        let link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `Prescription_${id}_${d}.doc`;
+        link.click();
+    }
+
+    // Init
+    calcBMI(); ['rec','up','run','row','ellip'].forEach(t=>upd(t)); drawCal(cy,cm);
+</script>
+</body>
+</html>
+
